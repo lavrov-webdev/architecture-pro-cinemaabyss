@@ -1,0 +1,133 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+title Схема контейнеров видеосервиса (стриминг + подписки + покупка контента)
+
+Person(user, "Пользователь", "Просматривает контент, оформляет подписки и покупки")
+Person(contentManager, "Контент-менеджер", "Загружает видеоконтент в библиотеку")
+
+System_Boundary(videoService, "Видеосервис") {
+    Container(apiGateway, "API Gateway", "HTTP API", "Маршрутизация, rate limiting")
+    
+    Container(authService, "Authentication Service", "HTTP API", "JWT токены, сессии, refresh tokens")
+    ContainerDb(authRedis, "Redis", "Cache", "Хранение сессий и токенов")
+    
+    Container(authzService, "Authorization Service", "HTTP API", "Проверка прав доступа к контенту")
+    
+    Container(uploadOrch, "Upload Orchestrator", "HTTP API + Kafka Consumer", "Оркестрация загрузки видео")
+    ContainerDb(uploadDb, "PostgreSQL", "RDBMS", "Состояние загрузок")
+    
+    Container(videoProc, "Video Processor", "Kafka Consumer", "Транскодинг, чанкинг видео")
+    
+    Container(movies, "Movies Service", "HTTP API", "Метаданные фильмов и сериалов")
+    ContainerDb(moviesDb, "PostgreSQL", "RDBMS", "Каталог контента")
+    
+    Container(subscription, "Subscription Service", "HTTP API + Kafka Producer", "Управление подписками")
+    ContainerDb(subDb, "PostgreSQL", "RDBMS", "Подписки пользователей")
+    
+    Container(store, "Store Service", "HTTP API + Kafka Producer", "Разовые покупки фильмов")
+    ContainerDb(storeDb, "PostgreSQL", "RDBMS", "Покупки пользователей")
+    
+    Container(payment, "Payment Service", "HTTP API + Kafka Producer", "Обработка платежей")
+    ContainerDb(paymentDb, "PostgreSQL", "RDBMS", "Транзакции и платежи")
+    
+    Container(sagaOrch, "Payment Saga Orchestrator", "Kafka Consumer", "Координация распределенных транзакций")
+    ContainerDb(sagaDb, "PostgreSQL", "RDBMS", "Состояние saga транзакций")
+    
+    Container(users, "Users Service", "HTTP API", "Личные данные, история просмотров")
+    ContainerDb(usersDb, "PostgreSQL", "RDBMS", "Информация о пользователях")
+    
+    Container(notification, "Notification Service", "Kafka Consumer", "Email, push уведомления")
+    ContainerDb(notificationDb, "PostgreSQL", "RDBMS", "Шаблоны и история уведомлений")
+    
+    ContainerQueue(kafka, "Kafka", "Message Broker", "Асинхронная коммуникация между сервисами")
+    
+    Container(prometheus, "Prometheus + Grafana", "Monitoring", "Сбор метрик и визуализация")
+    Container(jaeger, "Jaeger", "Tracing", "Distributed tracing")
+    Container(elk, "ELK Stack", "Logging", "Централизованное логирование")
+}
+
+System_Ext(s3cdn, "S3 + CDN", "Object Storage + CDN", "Хранение и раздача видеоконтента")
+System_Ext(paymentGateway, "Payment Gateway", "External API", "Внешний платежный процессинг")
+
+' Пользовательские запросы
+Rel(user, apiGateway, "Просмотр контента, покупки", "HTTPS")
+Rel(contentManager, apiGateway, "Загрузка видео", "HTTPS")
+
+' API Gateway маршрутизация
+Rel(apiGateway, authService, "Проверка токенов", "HTTP")
+Rel(apiGateway, authzService, "Проверка прав доступа", "HTTP")
+Rel(apiGateway, movies, "Запрос метаданных", "HTTP")
+Rel(apiGateway, subscription, "Управление подписками", "HTTP")
+Rel(apiGateway, store, "Покупки фильмов", "HTTP")
+Rel(apiGateway, uploadOrch, "Загрузка видео", "HTTP")
+
+' Authentication
+Rel(authService, authRedis, "Чтение/запись сессий", "Redis Protocol")
+
+' Authorization
+Rel(authzService, subscription, "Проверка подписки", "HTTP")
+Rel(authzService, store, "Проверка покупки", "HTTP")
+
+' Upload flow
+Rel(uploadOrch, uploadDb, "Состояние загрузок", "SQL")
+Rel(uploadOrch, movies, "Отправка метаданных", "HTTP")
+Rel(uploadOrch, kafka, "События загрузки", "Kafka Protocol")
+Rel(kafka, videoProc, "Задачи обработки видео", "Kafka Protocol")
+Rel(videoProc, s3cdn, "Сохранение чанков", "S3 API")
+Rel(kafka, uploadOrch, "Результаты обработки", "Kafka Protocol")
+
+' Movies
+Rel(movies, moviesDb, "Чтение/запись метаданных", "SQL")
+
+' Subscription flow
+Rel(subscription, subDb, "Управление подписками", "SQL")
+Rel(subscription, kafka, "События подписок", "Kafka Protocol")
+
+' Store flow
+Rel(store, storeDb, "Управление покупками", "SQL")
+Rel(store, kafka, "События покупок", "Kafka Protocol")
+
+' Payment Saga flow
+Rel(kafka, sagaOrch, "События платежей", "Kafka Protocol")
+Rel(sagaOrch, sagaDb, "Состояние транзакций", "SQL")
+Rel(sagaOrch, payment, "Команды платежей", "HTTP")
+Rel(sagaOrch, subscription, "Активация подписки", "HTTP")
+Rel(sagaOrch, store, "Создание покупки", "HTTP")
+
+' Payment
+Rel(payment, paymentDb, "Транзакции", "SQL")
+Rel(payment, paymentGateway, "Обработка платежей", "HTTPS")
+Rel(paymentGateway, payment, "Webhooks оплаты", "HTTPS")
+Rel(payment, kafka, "События платежей", "Kafka Protocol")
+
+' Notifications
+Rel(kafka, notification, "События для уведомлений", "Kafka Protocol")
+Rel(notification, notificationDb, "Шаблоны и история", "SQL")
+Rel(notification, user, "Email, Push", "SMTP/Push API")
+
+' Users
+Rel(users, usersDb, "Личные данные", "SQL")
+
+' Content delivery
+Rel(user, s3cdn, "Потоковое видео", "HTTPS")
+
+' Monitoring & Observability
+Rel(apiGateway, prometheus, "Метрики", "HTTP")
+Rel(authService, prometheus, "Метрики", "HTTP")
+Rel(movies, prometheus, "Метрики", "HTTP")
+Rel(subscription, prometheus, "Метрики", "HTTP")
+Rel(store, prometheus, "Метрики", "HTTP")
+Rel(payment, prometheus, "Метрики", "HTTP")
+Rel(sagaOrch, prometheus, "Метрики", "HTTP")
+
+Rel(apiGateway, jaeger, "Traces", "UDP")
+Rel(authService, jaeger, "Traces", "UDP")
+Rel(movies, jaeger, "Traces", "UDP")
+
+Rel(apiGateway, elk, "Logs", "Filebeat")
+Rel(authService, elk, "Logs", "Filebeat")
+Rel(payment, elk, "Logs", "Filebeat")
+Rel(sagaOrch, elk, "Logs", "Filebeat")
+
+@enduml
