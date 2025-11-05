@@ -155,4 +155,5 @@ go.work
 # Postman tests reports
 tests/postman/reports/
 
+# Kubernetes dockerconfigsecret
 src/kubernetes/dockerconfigsecret.yaml
