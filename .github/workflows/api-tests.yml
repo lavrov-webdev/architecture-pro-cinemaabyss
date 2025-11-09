@@ -65,13 +65,12 @@ jobs:
           docker ps -a
           # Run the tests in Docker
           docker run --network=cinemaabyss-network -v "$(pwd)/reports:/app/reports" cinemaabyss-api-tests
-        
+      
+
+      - name: Собрать логи Docker
+        if: failure()
+        uses: jwalton/gh-docker-logs@v2
       
       - name: Stop services
         if: always()
-        run: |
-          docker logs cinemaabyss-movies-service
-          docker logs cinemaabyss-events-service
-          docker logs cinemaabyss-proxy-service
-          docker ps -a
-          docker compose down
+        run: docker compose down
