@@ -65,7 +65,7 @@ jobs:
           docker ps -a
           # Run the tests in Docker
           docker run --network=cinemaabyss-network -v "$(pwd)/reports:/app/reports" cinemaabyss-api-tests
-          docker logs architecture-pro-cinemaabyss-events-service
+          docker logs cinemaabyss-movies-service
         
       
       - name: Stop services
