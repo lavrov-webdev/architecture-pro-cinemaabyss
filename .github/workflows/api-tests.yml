@@ -71,5 +71,7 @@ jobs:
         if: always()
         run: |
           docker logs cinemaabyss-movies-service
-          docket ps -a
+          docker logs cinemaabyss-events-service
+          docker logs cinemaabyss-proxy-service
+          docker ps -a
           docker compose down
