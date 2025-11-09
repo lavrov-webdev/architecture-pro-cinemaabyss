@@ -9,6 +9,44 @@ const KAFKA_BROKERS = process.env.KAFKA_BROKERS || 'kafka:9092';
 app.use('/api/events', subApp);
 subApp.use(express.json());
 
+// Logging middleware for requests and responses
+subApp.use((req, res, next) => {
+    const startTime = Date.now();
+    const requestLog = {
+        timestamp: new Date().toISOString(),
+        method: req.method,
+        path: req.path,
+        url: req.originalUrl,
+        query: req.query,
+        body: req.body,
+        headers: req.headers
+    };
+    
+    console.log('→ Incoming Request:', JSON.stringify(requestLog, null, 2));
+    
+    // Store original json method
+    const originalJson = res.json.bind(res);
+    
+    // Override json method to log response
+    res.json = function(data) {
+        const duration = Date.now() - startTime;
+        const responseLog = {
+            timestamp: new Date().toISOString(),
+            method: req.method,
+            path: req.path,
+            statusCode: res.statusCode,
+            duration: `${duration}ms`,
+            body: data
+        };
+        
+        console.log('← Outgoing Response:', JSON.stringify(responseLog, null, 2));
+        
+        return originalJson(data);
+    };
+    
+    next();
+});
+
 const kafka = new Kafka({
     clientId: 'events-service',
     brokers: [KAFKA_BROKERS],
