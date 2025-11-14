@@ -29,7 +29,7 @@ jobs:
 
       - name: Set up Docker Compose
         run: |
-          docker compose --version
+          docker compose version
       
       - name: Start services with Docker Compose
         run: |
