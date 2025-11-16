@@ -9,7 +9,6 @@ const KAFKA_BROKERS = process.env.KAFKA_BROKERS || 'kafka:9092';
 app.use('/api/events', subApp);
 subApp.use(express.json());
 
-// Logging middleware for requests and responses
 subApp.use((req, res, next) => {
     const startTime = Date.now();
     const requestLog = {
@@ -22,7 +21,7 @@ subApp.use((req, res, next) => {
         headers: req.headers
     };
     
-    console.log('→ Incoming Request:', JSON.stringify(requestLog, null, 2));
+    // console.log('→ Incoming Request:', JSON.stringify(requestLog, null, 2));
     
     // Store original json method
     const originalJson = res.json.bind(res);
@@ -39,7 +38,7 @@ subApp.use((req, res, next) => {
             body: data
         };
         
-        console.log('← Outgoing Response:', JSON.stringify(responseLog, null, 2));
+        // console.log('← Outgoing Response:', JSON.stringify(responseLog, null, 2));
         
         return originalJson(data);
     };
